@@ -17,36 +17,55 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.example.proyectobasejetpackcompose.addtasks.ui.model.TasksModel
 
 
 @Composable
 fun TasksScreen(tasksViewModel: TasksViewModel) {
-
     val showDialog: Boolean by tasksViewModel.showDialog.observeAsState(false)
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
 
-    Box(modifier = Modifier.fillMaxSize()) {
-
-        AddTasksDialog(
-            showDialog,
-            onDismiss = { tasksViewModel.onDialogClose() },
-            onTaskAdded = { tasksViewModel.onTasksCreated(it) })
-        FabDialog(Modifier.align(Alignment.BottomEnd), tasksViewModel)
-        TasksList(tasksViewModel)
+    val uiState by produceState<TasksUiState>(
+        initialValue = TasksUiState.Loading, key1 = lifecycle,
+        key2 = tasksViewModel
+    ) {
+        lifecycle.repeatOnLifecycle(state = Lifecycle.State.STARTED) {
+            tasksViewModel.uiState.collect { value = it }
+        }
     }
+
+    when(uiState){
+        is TasksUiState.Error -> {}
+        TasksUiState.Loading -> {
+            CircularProgressIndicator()}
+        is TasksUiState.Success -> {
+            Box(modifier = Modifier.fillMaxSize()) {
+                AddTasksDialog(
+                    showDialog,
+                    onDismiss = { tasksViewModel.onDialogClose() },
+                    onTaskAdded = { tasksViewModel.onTasksCreated(it) })
+                FabDialog(Modifier.align(Alignment.BottomEnd), tasksViewModel)
+                TasksList((uiState as TasksUiState.Success).tasks,tasksViewModel)
+            }
+        }
+    }
+
+
 
 }
 
 @Composable
-fun TasksList(tasksViewModel: TasksViewModel) {
-    val myTasks: List<TasksModel> = tasksViewModel.tasks
+fun TasksList(tasks: List<TasksModel>, tasksViewModel: TasksViewModel) {
 
     LazyColumn() {
-        items(myTasks, key = { it.id }) { task ->
+        items(tasks, key = { it.id }) { task ->
             ItemTask(task, tasksViewModel)
         }
     }
